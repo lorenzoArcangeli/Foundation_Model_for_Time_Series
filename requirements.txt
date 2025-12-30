@@ -1,0 +1,8 @@
+git+https://github.com/amazon-science/chronos-forecasting.git
+datasets
+pandas
+numpy
+chronos-forecasting
+gluonts
+torch
+matplotlib

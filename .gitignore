@@ -1,0 +1,8 @@
+venv
+skippd_data
+skippd_test.parquet
+skippd_test_no_images.parquet
+skippd_train.parquet
+skippd_train_no_images.parquet
+previous_utils
+TODO
