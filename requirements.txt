@@ -6,3 +6,5 @@ chronos-forecasting
 gluonts
 torch
 matplotlib
+pyarrow
+fastparquet
