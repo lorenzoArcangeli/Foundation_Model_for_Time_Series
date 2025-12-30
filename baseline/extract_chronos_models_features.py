@@ -159,7 +159,7 @@ def main():
             
             # Save Embeddings
             safe_name = model_name.replace("/", "_").replace("-", "_")
-            save_path = f"embeddings_{safe_name}.pt"
+            save_path = f"features/embeddings_{safe_name}.pt"
             torch.save(embeddings, save_path)
             print(f"Saved embeddings to '{save_path}'")
             
