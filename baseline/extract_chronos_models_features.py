@@ -82,9 +82,8 @@ def extract_embeddings_chronos2(pipeline, context_tensor):
 
 
 # Configuration
-DATA_PATH = "/content/drive/MyDrive/FM_project/dataset/skippd_train_no_images.parquet"
+DATA_PATH = "/content/drive/MyDrive/FM_project/dataset/skippd_train_5min_no_images.parquet"
 MODELS_TO_RUN = ["amazon/chronos-t5-small", "amazon/chronos-bolt-small","amazon/chronos-bolt-base", "amazon/chronos-2"]
-#MODELS_TO_RUN=["amazon/chronos-2"]
 CONTEXT_LENGTH = 600 
 PREDICTION_LENGTH = 60
 

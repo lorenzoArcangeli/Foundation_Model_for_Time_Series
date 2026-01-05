@@ -1,0 +1,44 @@
+Prepare Dataset for Chronos
+The goal is to create a "clean" dataset suitable for the Chronos Foundation Model. Since Chronos processes time series as token sequences with a limited context window, simply padding large gaps (e.g., 99 days) is inefficient and can degrade performance.
+
+Strategy: Segmentation & Resampling
+We will essentially treat the single long timeline as a collection of smaller, independent time series (segments).
+
+Resample to Fixed Grid: Eliminate "jitter" (e.g., 50s vs 60s) by resampling to a strict frequency (e.g., 1 min or 15 min).
+Split on Large Gaps: Whenever a missing period exceeds 25 hours, we "cut" the timeline and start a new series_id.
+Handle Small Gaps: Gaps smaller than 25 hours will be filled (imputed) or left as NaNs (masked) depending on the logic, preserving the uniform grid.
+Implementation Script: 
+dataset/skippd_data/prepare_for_chronos.py
+This script will:
+
+Load the ORIGINAL (1-min) dataset.
+Truncate Data: Drop all rows after 2018-11-03 18:37:10-07:00.
+Round Timestamps: Normalize to nearest 30min (e.g., 08:29:40 -> 08:30:00) and deduplicate.
+Resample: Create a continuous 30-minute grid.
+Identify Gaps: Find blocks of missing data created by resampling.
+Impute Gaps (Tiered Strategy):
+Tier 0: Night Time (20:00 - 08:00)
+If timestamp hour is likely night (e.g. >19 or <8), fill pv with 0 and images with 0 (black).
+This addresses the systematic missing night data.
+Tier 1: Ultra-Short Gaps (<= 2 hours)
+Copy values from the immediate previous timestep (Forward Fill).
+This handles small sensor dropouts.
+Tier 2: Small Gaps (< 25 hours)
+Fill using valid data from t - 24 hours (Same time yesterday).
+Recursive fallback up to 7 days.
+Tier 3: Medium Gaps (25 hours <= Duration < 8 days)
+Fill using valid data from t - 7 days (Same time last week).
+Tier 3: Large Gaps (>= 7 days or fallback)
+Try to fill using t - 1 year (Previous Year).
+If missing, try t + 1 year (Next Year).
+This accounts for annual seasonality.
+NO is_valid_data mask created.
+Segment Remaining Gaps (Unfillable):
+Any gap that remains after all imputation attempts becomes a cut point.
+Assign new series_id to the valid chunks.
+Save: Result as skippd_train_cleaned_30min_v4.parquet.
+Verification
+We will verify that 
+skippd_train_cleaned.parquet
+ has a series_id column.
+We will verify that each series_id group has a perfectly uniform time index (no missing steps in the index itself).
