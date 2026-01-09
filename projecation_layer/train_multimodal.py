@@ -16,14 +16,14 @@ DATA_PATH = r"c:\Users\loren\Desktop\D vecchio\UNIVERSITA\MAGISTRALE\SecondYear\
 OUTPUT_DIR = r"c:\Users\loren\Desktop\D vecchio\UNIVERSITA\MAGISTRALE\SecondYear\FoundationModel\FM_test\project_features\multimodal_checkpoints"
 VISION_MODEL = "facebook/dinov2-small"
 CHRONOS_MODEL = "amazon/chronos-2"
-BATCH_SIZE = 32 # Increased for stability and speed
-GRADIENT_ACCUMULATION_STEPS = 1 # No longer needed with larger batch
+BATCH_SIZE = 16 # Reduced because Group Attention expands batch by 17x
+GRADIENT_ACCUMULATION_STEPS = 2 # Accumulate to effective batch of 32
 LEARNING_RATE = 1e-4
 NUM_EPOCHS = 1
 CONTEXT_LENGTH = 192 # Reduced to ~4 days for efficiency
 PREDICTION_LENGTH = 96
 COVARIATE_DIM = 16
-STRIDE = 24 # 12 hours between samples (48 steps/day)
+STRIDE = 1 # 12 hours between samples (48 steps/day)
 
 def load_data(path):
     print(f"Loading dataset from {path}...")
@@ -34,6 +34,11 @@ def load_data(path):
         df['timestamp'] = pd.to_datetime(df['time']) 
         if df['timestamp'].dt.tz is not None:
              df['timestamp'] = df['timestamp'].dt.tz_localize(None)
+
+    # Rename for consistency with Dataset class expectations
+    # Check if we need to rename (precomputed file might have 'series_id' and 'pv')
+    if "series_id" in df.columns:
+        df = df.rename(columns={"series_id": "item_id", "pv": "pv_value"})
 
     df = df.sort_values(['item_id', 'timestamp']).reset_index(drop=True)
     return df
@@ -70,6 +75,14 @@ def main():
         use_precomputed_embeddings=True
     )
     
+    # Load PCA Initialization if available
+    pca_init_path = os.path.join(OUTPUT_DIR, "vision_projector_pca_init.pth")
+    if os.path.exists(pca_init_path):
+        print(f"Loading PCA-Initialized Projector from {pca_init_path}...")
+        model.projector.load_state_dict(torch.load(pca_init_path))
+    else:
+        print("No PCA initialization found. Training projector from scratch (Random Init).")
+    
     # Load Chronos part correctly
     from chronos import BaseChronosPipeline
     print("Loading Chronos Pipeline to get model...")
@@ -90,9 +103,26 @@ def main():
     
     # Apply LoRA to Chronos
     peft_config = LoraConfig(
-        inference_mode=False, 
-        r=8, 
-        lora_alpha=32, 
+        r=16,                    # Rank (same as default or adjust as needed)
+        lora_alpha=32,           # Alpha (scaling factor)
+        target_modules=[
+            "self_attention.q",
+            "self_attention.v",
+            "self_attention.k",
+            "self_attention.o",
+            "output_patch_embedding.output_layer",
+        ],
+        lora_dropout=0.05,
+        bias="none",
+        #task_type="CAUSAL_LM",
+        use_dora=True           
+    )
+    """
+    # Apply LoRA to Chronos
+    peft_config = LoraConfig(
+        inference_mode=False,
+        r=8,
+        lora_alpha=32,
         lora_dropout=0.1,
         target_modules=[
             "self_attention.q",
@@ -102,6 +132,7 @@ def main():
             "output_patch_embedding.output_layer",
         ],
     )
+    """
     # We wrap just the chronos component
     model.chronos = get_peft_model(model.chronos, peft_config)
     model.chronos.print_trainable_parameters()
@@ -127,10 +158,15 @@ def main():
             pixel_values = batch["pixel_values"].to(device).bfloat16() 
             future_target = batch["future_target"].to(device).bfloat16()
             
+            tabular_covariates = None
+            if batch["tabular_covariates"] is not None:
+                tabular_covariates = batch["tabular_covariates"].to(device).bfloat16()
+            
             # Forward
             outputs = model(
                 context_tensor=context,
                 pixel_values=pixel_values,
+                tabular_covariates=tabular_covariates,
                 future_target=future_target
             )
             
@@ -163,6 +199,18 @@ def main():
                 # torch.cuda.empty_cache() 
                 
         print(f"Epoch {epoch+1} Complete. Avg Loss: {total_loss/steps:.4f}")
+        
+        # Save Checkpoint every 5 epochs
+        if (epoch + 1) % 5 == 0:
+            print(f"Saving Checkpoint for Epoch {epoch+1}...")
+            epoch_dir = os.path.join(OUTPUT_DIR, f"checkpoint_epoch_{epoch+1}")
+            os.makedirs(epoch_dir, exist_ok=True)
+            
+            # Save Projector
+            torch.save(model.projector.state_dict(), os.path.join(epoch_dir, "vision_projector.pth"))
+            # Save Chronos Adapter
+            model.chronos.save_pretrained(os.path.join(epoch_dir, "chronos_lora_adapter"))
+            print(f"Checkpoint saved to {epoch_dir}")
         
     # 5. Save
     print("Saving Projector and Adapter...")
