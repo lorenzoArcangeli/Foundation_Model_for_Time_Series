@@ -1,0 +1,86 @@
+Using device: cuda
+Loading dataset from /content/drive/MyDrive/FM_project/dataset/skippd_train_embeddings.parquet...
+Preprocessing dataset into tensors for speed...
+Dataset created with 4453 samples.
+Using precomputed embeddings. Skipping Vision Backbone load.
+Loading Chronos Pipeline to get model...
+Casting Projector to bfloat16...
+trainable params: 1,206,912 || all params: 120,684,576 || trainable%: 1.0001
+Starting Training...
+Epoch 1 | Step 10 | Loss: 0.1987
+Epoch 1 | Step 20 | Loss: 0.1474
+Epoch 1 | Step 30 | Loss: 0.1372
+Epoch 1 | Step 40 | Loss: 0.1706
+Epoch 1 | Step 50 | Loss: 0.1337
+Epoch 1 | Step 60 | Loss: 0.1512
+Epoch 1 | Step 70 | Loss: 0.1426
+Epoch 1 | Step 80 | Loss: 0.1639
+Epoch 1 | Step 90 | Loss: 0.1682
+Epoch 1 | Step 100 | Loss: 0.1838
+Epoch 1 | Step 110 | Loss: 0.1601
+Epoch 1 | Step 120 | Loss: 0.1241
+Epoch 1 | Step 130 | Loss: 0.1857
+Epoch 1 | Step 140 | Loss: 0.0993
+Epoch 1 Complete. Avg Loss: 0.1546
+Epoch 2 | Step 10 | Loss: 0.1011
+Epoch 2 | Step 20 | Loss: 0.1336
+Epoch 2 | Step 30 | Loss: 0.1454
+Epoch 2 | Step 40 | Loss: 0.1465
+Epoch 2 | Step 50 | Loss: 0.1519
+Epoch 2 | Step 60 | Loss: 0.1712
+Epoch 2 | Step 70 | Loss: 0.1416
+Epoch 2 | Step 80 | Loss: 0.1474
+Epoch 2 | Step 90 | Loss: 0.1215
+Epoch 2 | Step 100 | Loss: 0.1459
+Epoch 2 | Step 110 | Loss: 0.1126
+Epoch 2 | Step 120 | Loss: 0.1556
+Epoch 2 | Step 130 | Loss: 0.1339
+Epoch 2 | Step 140 | Loss: 0.1018
+Epoch 2 Complete. Avg Loss: 0.1457
+Epoch 3 | Step 10 | Loss: 0.1092
+Epoch 3 | Step 20 | Loss: 0.1487
+Epoch 3 | Step 30 | Loss: 0.1272
+Epoch 3 | Step 40 | Loss: 0.1207
+Epoch 3 | Step 50 | Loss: 0.1313
+Epoch 3 | Step 60 | Loss: 0.1250
+Epoch 3 | Step 70 | Loss: 0.1477
+Epoch 3 | Step 80 | Loss: 0.1289
+Epoch 3 | Step 90 | Loss: 0.1645
+Epoch 3 | Step 100 | Loss: 0.1678
+Epoch 3 | Step 110 | Loss: 0.1369
+Epoch 3 | Step 120 | Loss: 0.1471
+Epoch 3 | Step 130 | Loss: 0.1685
+Epoch 3 | Step 140 | Loss: 0.0679
+Epoch 3 Complete. Avg Loss: 0.1364
+Epoch 4 | Step 10 | Loss: 0.1221
+Epoch 4 | Step 20 | Loss: 0.1336
+Epoch 4 | Step 30 | Loss: 0.1027
+Epoch 4 | Step 40 | Loss: 0.1409
+Epoch 4 | Step 50 | Loss: 0.1094
+Epoch 4 | Step 60 | Loss: 0.1135
+Epoch 4 | Step 70 | Loss: 0.1403
+Epoch 4 | Step 80 | Loss: 0.1259
+Epoch 4 | Step 90 | Loss: 0.1096
+Epoch 4 | Step 100 | Loss: 0.1248
+Epoch 4 | Step 110 | Loss: 0.1207
+Epoch 4 | Step 120 | Loss: 0.1365
+Epoch 4 | Step 130 | Loss: 0.1427
+Epoch 4 | Step 140 | Loss: 0.1350
+Epoch 4 Complete. Avg Loss: 0.1270
+Epoch 5 | Step 10 | Loss: 0.1408
+Epoch 5 | Step 20 | Loss: 0.1087
+Epoch 5 | Step 30 | Loss: 0.1278
+Epoch 5 | Step 40 | Loss: 0.1360
+Epoch 5 | Step 50 | Loss: 0.1210
+Epoch 5 | Step 60 | Loss: 0.1115
+Epoch 5 | Step 70 | Loss: 0.1015
+Epoch 5 | Step 80 | Loss: 0.1193
+Epoch 5 | Step 90 | Loss: 0.0962
+Epoch 5 | Step 100 | Loss: 0.1360
+Epoch 5 | Step 110 | Loss: 0.0902
+Epoch 5 | Step 120 | Loss: 0.1094
+Epoch 5 | Step 130 | Loss: 0.1403
+Epoch 5 | Step 140 | Loss: 0.0560
+Epoch 5 Complete. Avg Loss: 0.1202
+Saving Projector and Adapter...
+Done!

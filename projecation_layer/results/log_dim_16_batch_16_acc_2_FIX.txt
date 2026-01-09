@@ -1,0 +1,160 @@
+Using device: cuda
+Loading dataset from /content/drive/MyDrive/FM_project/dataset/skippd_train_embeddings.parquet...
+Preprocessing dataset into tensors for speed...
+Dataset created with 4453 samples.
+Using precomputed embeddings. Skipping Vision Backbone load.
+No PCA initialization found. Training projector from scratch (Random Init).
+Loading Chronos Pipeline to get model...
+/usr/local/lib/python3.12/dist-packages/huggingface_hub/utils/_auth.py:94: UserWarning: 
+The secret `HF_TOKEN` does not exist in your Colab secrets.
+To authenticate with the Hugging Face Hub, create a token in your settings tab (https://huggingface.co/settings/tokens), set it as secret in your Google Colab and restart your session.
+You will be able to reuse this secret in all of your notebooks.
+Please note that authentication is recommended but still optional to access public models or datasets.
+  warnings.warn(
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+Casting Projector to bfloat16...
+trainable params: 1,206,912 || all params: 120,684,576 || trainable%: 1.0001
+Starting Training...
+Epoch 1 | Step 10 | Loss: 0.0559
+Epoch 1 | Step 20 | Loss: 0.0625
+Epoch 1 | Step 30 | Loss: 0.0710
+Epoch 1 | Step 40 | Loss: 0.0869
+Epoch 1 | Step 50 | Loss: 0.1112
+Epoch 1 | Step 60 | Loss: 0.0677
+Epoch 1 | Step 70 | Loss: 0.0737
+Epoch 1 | Step 80 | Loss: 0.0561
+Epoch 1 | Step 90 | Loss: 0.0995
+Epoch 1 | Step 100 | Loss: 0.0881
+Epoch 1 | Step 110 | Loss: 0.0867
+Epoch 1 | Step 120 | Loss: 0.0720
+Epoch 1 | Step 130 | Loss: 0.0666
+Epoch 1 | Step 140 | Loss: 0.0615
+Epoch 1 | Step 150 | Loss: 0.0586
+Epoch 1 | Step 160 | Loss: 0.0596
+Epoch 1 | Step 170 | Loss: 0.0540
+Epoch 1 | Step 180 | Loss: 0.0618
+Epoch 1 | Step 190 | Loss: 0.0575
+Epoch 1 | Step 200 | Loss: 0.0811
+Epoch 1 | Step 210 | Loss: 0.0502
+Epoch 1 | Step 220 | Loss: 0.0625
+Epoch 1 | Step 230 | Loss: 0.0495
+Epoch 1 | Step 240 | Loss: 0.0854
+Epoch 1 | Step 250 | Loss: 0.0961
+Epoch 1 | Step 260 | Loss: 0.0598
+Epoch 1 | Step 270 | Loss: 0.0502
+Epoch 1 Complete. Avg Loss: 0.0703
+Epoch 2 | Step 10 | Loss: 0.0768
+Epoch 2 | Step 20 | Loss: 0.0394
+Epoch 2 | Step 30 | Loss: 0.0672
+Epoch 2 | Step 40 | Loss: 0.1020
+Epoch 2 | Step 50 | Loss: 0.0606
+Epoch 2 | Step 60 | Loss: 0.0836
+Epoch 2 | Step 70 | Loss: 0.0701
+Epoch 2 | Step 80 | Loss: 0.0520
+Epoch 2 | Step 90 | Loss: 0.0415
+Epoch 2 | Step 100 | Loss: 0.0649
+Epoch 2 | Step 110 | Loss: 0.0626
+Epoch 2 | Step 120 | Loss: 0.0495
+Epoch 2 | Step 130 | Loss: 0.0607
+Epoch 2 | Step 140 | Loss: 0.0965
+Epoch 2 | Step 150 | Loss: 0.0577
+Epoch 2 | Step 160 | Loss: 0.0594
+Epoch 2 | Step 170 | Loss: 0.0853
+Epoch 2 | Step 180 | Loss: 0.0600
+Epoch 2 | Step 190 | Loss: 0.0477
+Epoch 2 | Step 200 | Loss: 0.0697
+Epoch 2 | Step 210 | Loss: 0.0629
+Epoch 2 | Step 220 | Loss: 0.0601
+Epoch 2 | Step 230 | Loss: 0.0516
+Epoch 2 | Step 240 | Loss: 0.0645
+Epoch 2 | Step 250 | Loss: 0.0666
+Epoch 2 | Step 260 | Loss: 0.0586
+Epoch 2 | Step 270 | Loss: 0.0638
+Epoch 2 Complete. Avg Loss: 0.0662
+Epoch 3 | Step 10 | Loss: 0.0669
+Epoch 3 | Step 20 | Loss: 0.0530
+Epoch 3 | Step 30 | Loss: 0.0523
+Epoch 3 | Step 40 | Loss: 0.1021
+Epoch 3 | Step 50 | Loss: 0.0484
+Epoch 3 | Step 60 | Loss: 0.0472
+Epoch 3 | Step 70 | Loss: 0.0688
+Epoch 3 | Step 80 | Loss: 0.0650
+Epoch 3 | Step 90 | Loss: 0.0708
+Epoch 3 | Step 100 | Loss: 0.0473
+Epoch 3 | Step 110 | Loss: 0.0641
+Epoch 3 | Step 120 | Loss: 0.0593
+Epoch 3 | Step 130 | Loss: 0.0695
+Epoch 3 | Step 140 | Loss: 0.0562
+Epoch 3 | Step 150 | Loss: 0.0628
+Epoch 3 | Step 160 | Loss: 0.0553
+Epoch 3 | Step 170 | Loss: 0.0875
+Epoch 3 | Step 180 | Loss: 0.0673
+Epoch 3 | Step 190 | Loss: 0.0673
+Epoch 3 | Step 200 | Loss: 0.0628
+Epoch 3 | Step 210 | Loss: 0.0685
+Epoch 3 | Step 220 | Loss: 0.0585
+Epoch 3 | Step 230 | Loss: 0.0802
+Epoch 3 | Step 240 | Loss: 0.0585
+Epoch 3 | Step 250 | Loss: 0.0697
+Epoch 3 | Step 260 | Loss: 0.0396
+Epoch 3 | Step 270 | Loss: 0.0500
+Epoch 3 Complete. Avg Loss: 0.0626
+Epoch 4 | Step 10 | Loss: 0.0356
+Epoch 4 | Step 20 | Loss: 0.0396
+Epoch 4 | Step 30 | Loss: 0.0755
+Epoch 4 | Step 40 | Loss: 0.0787
+Epoch 4 | Step 50 | Loss: 0.0818
+Epoch 4 | Step 60 | Loss: 0.0518
+Epoch 4 | Step 70 | Loss: 0.0658
+Epoch 4 | Step 80 | Loss: 0.0615
+Epoch 4 | Step 90 | Loss: 0.0805
+Epoch 4 | Step 100 | Loss: 0.0604
+Epoch 4 | Step 110 | Loss: 0.0609
+Epoch 4 | Step 120 | Loss: 0.0768
+Epoch 4 | Step 130 | Loss: 0.0564
+Epoch 4 | Step 140 | Loss: 0.0466
+Epoch 4 | Step 150 | Loss: 0.0376
+Epoch 4 | Step 160 | Loss: 0.0782
+Epoch 4 | Step 170 | Loss: 0.0455
+Epoch 4 | Step 180 | Loss: 0.0751
+Epoch 4 | Step 190 | Loss: 0.0375
+Epoch 4 | Step 200 | Loss: 0.0738
+Epoch 4 | Step 210 | Loss: 0.0549
+Epoch 4 | Step 220 | Loss: 0.0523
+Epoch 4 | Step 230 | Loss: 0.0968
+Epoch 4 | Step 240 | Loss: 0.0530
+Epoch 4 | Step 250 | Loss: 0.0356
+Epoch 4 | Step 260 | Loss: 0.0572
+Epoch 4 | Step 270 | Loss: 0.0612
+Epoch 4 Complete. Avg Loss: 0.0582
+Epoch 5 | Step 10 | Loss: 0.0648
+Epoch 5 | Step 20 | Loss: 0.0615
+Epoch 5 | Step 30 | Loss: 0.0562
+Epoch 5 | Step 40 | Loss: 0.0374
+Epoch 5 | Step 50 | Loss: 0.0497
+Epoch 5 | Step 60 | Loss: 0.0677
+Epoch 5 | Step 70 | Loss: 0.0550
+Epoch 5 | Step 80 | Loss: 0.0569
+Epoch 5 | Step 90 | Loss: 0.0552
+Epoch 5 | Step 100 | Loss: 0.0593
+Epoch 5 | Step 110 | Loss: 0.0649
+Epoch 5 | Step 120 | Loss: 0.0755
+Epoch 5 | Step 130 | Loss: 0.0668
+Epoch 5 | Step 140 | Loss: 0.0589
+Epoch 5 | Step 150 | Loss: 0.0654
+Epoch 5 | Step 160 | Loss: 0.0645
+Epoch 5 | Step 170 | Loss: 0.0514
+Epoch 5 | Step 180 | Loss: 0.0419
+Epoch 5 | Step 190 | Loss: 0.0490
+Epoch 5 | Step 200 | Loss: 0.0377
+Epoch 5 | Step 210 | Loss: 0.0611
+Epoch 5 | Step 220 | Loss: 0.0574
+Epoch 5 | Step 230 | Loss: 0.0811
+Epoch 5 | Step 240 | Loss: 0.0545
+Epoch 5 | Step 250 | Loss: 0.0484
+Epoch 5 | Step 260 | Loss: 0.0587
+Epoch 5 | Step 270 | Loss: 0.0468
+Epoch 5 Complete. Avg Loss: 0.0552
+Saving Projector and Adapter...
+Done!
