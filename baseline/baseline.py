@@ -5,12 +5,27 @@ import os
 from utils import plot_prediction
 
 # --- Configuration ---
-COVARIATE_COLUMNS = ['time_hour_sin', 'time_hour_cos', 'time_dayofyear_sin']
-BASE_DIR = "/content/drive/MyDrive/FM_project/dataset"
-TRAIN_PATH = os.path.join(BASE_DIR, "skippd_train_aligned_v13_with_time_features_no_images.parquet")
+USE_IMAGE_FEATURES = False # Toggle this to True to use image features
 PREDICTION_LENGTH = 96
 RESULTS_DIR = "results"
 USE_CV2_SAVED_MODEL = False
+
+BASE_DIR = "/content/drive/MyDrive/FM_project/dataset"
+
+# Dataset Paths
+TRAIN_PATH_NO_IMAGES = os.path.join(BASE_DIR, "skippd_train_aligned_v13_with_time_features_no_images.parquet")
+TRAIN_PATH_WITH_IMAGES = os.path.join(BASE_DIR, "skippd_train_aligned_v13_with_time_features_and_sky_features.parquet")
+
+# Covariates
+COVARIATE_COLUMNS = ['time_hour_sin', 'time_hour_cos', 'time_dayofyear_sin']
+
+if USE_IMAGE_FEATURES:
+    TRAIN_PATH = TRAIN_PATH_WITH_IMAGES
+    SKY_FEATURE_COLS = [f"sky_feature_{i}" for i in range(10)]
+    COVARIATE_COLUMNS.extend(SKY_FEATURE_COLS)
+else:
+    TRAIN_PATH = TRAIN_PATH_NO_IMAGES
+    SKY_FEATURE_COLS = []
 
 def load_and_prepare(path):
     print(f"Loading {path}...")
@@ -32,8 +47,15 @@ def load_and_prepare(path):
 
     missing_covariates = [col for col in COVARIATE_COLUMNS if col not in df.columns]
     if missing_covariates:
+        print(f"Columns in DF: {df.columns}")
         raise ValueError(f"Missing required covariate columns: {missing_covariates}")
 
+    # Handle Sky Features (if applicable)
+    if USE_IMAGE_FEATURES and SKY_FEATURE_COLS:
+        if df[SKY_FEATURE_COLS].isnull().values.any():
+            print("âš ï¸ Warning: NaNs found in sky features. Filling with 0.")
+            df[SKY_FEATURE_COLS] = df[SKY_FEATURE_COLS].fillna(0)
+            
     # Create TimeSeriesDataFrame
     ts_df = TimeSeriesDataFrame.from_data_frame(
         df,
@@ -114,7 +136,7 @@ def fit_model(full_df, use_saved_models=USE_CV2_SAVED_MODEL):
   )
 
   robust_hyperparameters = {
-    "Chronos2": [
+    "Chronos2": [  
         {
             "ag_args": {"name_suffix": "ZeroShot"}
         }
@@ -163,6 +185,9 @@ def chronos2prediction(past_data, known_covariates_future, known_covariates, c2_
           )
 
           predictions_dict[model_name] = preds
+
+          # Optional: Save each to CSV
+          preds.to_csv(os.path.join(RESULTS_DIR, f"forecast_{model_name}.csv"))
       else:
           print(f"Warning: Model '{model_name}' not found in predictor.")
 
@@ -172,16 +197,22 @@ def main():
     os.makedirs(RESULTS_DIR, exist_ok=True)
     
     full_df = load_and_prepare(TRAIN_PATH)
+    
+    # DROP the raw image column (dicts) if it exists so AutoGluon doesn't crash
+    if "image" in full_df.columns:
+        print("Dropping raw 'image' column (dictionaries)...")
+        full_df = full_df.drop(columns=["image"])
+
     print(f"Data shape: {full_df.shape}")
 
     # Fit models (Returns full trained data for context)
     train_data, bolt_predictor, c2_predictor = fit_model(full_df, use_saved_models=USE_CV2_SAVED_MODEL)
 
-    # Generate Predictions 
+    # --- Generate Predictions ---
     past_data = train_data.slice_by_timestep(None, -PREDICTION_LENGTH)
     known_covariates_future = train_data[COVARIATE_COLUMNS]
 
-    # Predict with Chronos-2
+    # Predict with Chronos-2 manually
     print("Generating Chronos-2 predictions...")
     cv2_model_predictions = chronos2prediction(
         past_data, 
