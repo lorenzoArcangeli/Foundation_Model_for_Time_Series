@@ -89,7 +89,7 @@ def get_peft_config(peft_type: str, target_modules: list, r: int = 8, lora_alpha
         return FourierFTConfig(
             target_modules=target_modules,
             n_frequency=1000, # Default spectral count, can be tuned
-            scale=0.1         # Default scale
+            #scale=0.1         # Default scale
         )
     else:
         raise ValueError(f"Unsupported PEFT type: {peft_type}")

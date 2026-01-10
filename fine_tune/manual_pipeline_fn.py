@@ -1,20 +1,23 @@
 import pandas as pd
 import torch
 import numpy as np
-import matplotlib.pyplot as plt
 import os
 from chronos import BaseChronosPipeline, Chronos2Pipeline
 from peft import LoraConfig
-import itertools
+from utils.plotting_utils import calculate_item_mase, calculate_item_mape, calculate_item_wmape, plot_model_comparison
+from utils.cv import backtest_model
 
-
-pipeline: Chronos2Pipeline = BaseChronosPipeline.from_pretrained("amazon/chronos-2", device_map="cuda", torch_dtype=torch.bfloat16)
-
+# --- Configuration ---
+ADAPTER_TYPE = "dora" # Options: "lora", "dora"
 PREDICTION_LENGTH = 96
-base_dir = DATA_PATH = "/content/drive/MyDrive/FM_project/dataset"
-train_path = os.path.join(base_dir, "skippd_train_aligned_v13_with_time_features_and_sky_features.parquet")
+BATCH_SIZE = 12 
+LEARNING_RATE = 1e-4
+NUM_STEPS = 200
+LOGGING_STEPS = 100
+BASE_DIR = "/content/drive/MyDrive/FM_project/dataset"
+RESULTS_DIR = "results"
 
-COVARIATE_COLUMNS = list()
+TRAIN_PATH = os.path.join(BASE_DIR, "skippd_train_aligned_v13_with_time_features_and_sky_features.parquet")
 
 def load_and_prepare(path):
     print(f"Loading {path}...")
@@ -23,36 +26,32 @@ def load_and_prepare(path):
       print("Dropping raw 'image' column (dictionaries)...")
     df = df.drop(columns=["image"])
 
-    # 1. Rename columns
+    # Rename columns
     column_mapping = {
         "time": "timestamp",
         "series_id": "item_id",
         "pv": "pv_value"
     }
 
-
     df = df.rename(columns={k: v for k, v in column_mapping.items() if k in df.columns})
 
-    # 2. Timestamp Conversion
+    # Timestamp Conversion
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     if df['timestamp'].dt.tz is not None:
         df['timestamp'] = df['timestamp'].dt.tz_localize(None)
 
     reserved_columns = ['timestamp', 'item_id', 'pv_value']
 
-    COVARIATE_COLUMNS = [col for col in df.columns if col not in reserved_columns]
+    covariate_columns = [col for col in df.columns if col not in reserved_columns]
 
-    print(f" Automatically identified {len(COVARIATE_COLUMNS)} covariates: {COVARIATE_COLUMNS}")
+    print(f" Automatically identified {len(covariate_columns)} covariates: {covariate_columns}")
 
-    # 3. Check Covariates
-    missing_covariates = [col for col in COVARIATE_COLUMNS if col not in df.columns]
+    # Check Covariates
+    missing_covariates = [col for col in covariate_columns if col not in df.columns]
     if missing_covariates:
         raise ValueError(f"Missing required covariate columns: {missing_covariates}")
 
-    # --- UPDATED LOGIC FOR MULTIPLE SERIES ---
-
-    # 4. Filter out series that are too short
-    # We need at least prediction_length + 1 data point to have a training set
+    # Filter out series that are too short
     item_counts = df.groupby('item_id').size()
     valid_items = item_counts[item_counts > PREDICTION_LENGTH].index
 
@@ -60,20 +59,16 @@ def load_and_prepare(path):
         print(f"Dropping {len(item_counts) - len(valid_items)} series that are too short.")
         df = df[df['item_id'].isin(valid_items)].copy()
 
-    # 5. Sort by item_id AND timestamp (Critical for correct splitting)
+    # Sort by item_id AND timestamp
     df = df.sort_values(['item_id', 'timestamp']).reset_index(drop=True)
 
-    # 6. Global Split
+    # Global Split
     print(f"Splitting data for {len(valid_items)} time series...")
 
-    # Inference/Test: Grab the last PREDICTION_LENGTH rows for EACH item_id
     test_df = df.groupby('item_id').tail(PREDICTION_LENGTH).copy()
 
-    # Train: Drop the rows that belong to test_df
-    # (Since we reset_index above, the indices are unique and safe to use for dropping)
     train_df = df.drop(test_df.index).copy()
 
-    # 7. Create Inference input (Drop target)
     inference_df = test_df.copy()
     if 'pv_value' in inference_df.columns:
         inference_df = inference_df.drop(columns=['pv_value'])
@@ -81,65 +76,132 @@ def load_and_prepare(path):
     print(f"Train shape: {train_df.shape}")
     print(f"Inference/Test shape: {inference_df.shape}")
 
-    return train_df, inference_df, test_df
+    return train_df, inference_df, test_df, covariate_columns
 
-target = "pv_value"  
-prediction_length = PREDICTION_LENGTH  
-id_column = "item_id"  
-timestamp_column = "timestamp"
-timeseries_id = 0
+def prepare_train_inputs(train_df, covariate_columns, target_col="pv_value"):
+    train_inputs = []
 
-train_df, inference_df, test_df =load_and_prepare(train_path)
-
-pred_df = pipeline.predict_df(
-    df=train_df,
-    future_df=inference_df,
-    prediction_length=prediction_length,
-    quantile_levels=[0.1, 0.5, 0.9],
-    id_column=id_column,
-    timestamp_column=timestamp_column,
-    target=target,
-)
+    known_covariates = covariate_columns
+    
+    for item_id, group in train_df.groupby("item_id"):
+        covariates_dict = {col: group[col].values for col in covariate_columns}
+        
+        train_inputs.append({
+            "target": group[target_col].values,
+            "past_covariates": covariates_dict,
+            "future_covariates": {col: None for col in known_covariates} 
+        })
+    return train_inputs
 
 
+def main():
+    # Initialize Pipeline
+    print("Initializing Chronos Pipeline...")
+    pipeline: Chronos2Pipeline = BaseChronosPipeline.from_pretrained(
+        "amazon/chronos-2", 
+        device_map="cuda", 
+        torch_dtype=torch.bfloat16
+    )
 
-# Prepare data for fine-tuning using the retail sales dataset
-known_covariates = COVARIATE_COLUMNS
+    # Load Data
+    train_df, inference_df, test_df, covariate_columns = load_and_prepare(TRAIN_PATH)
 
-train_inputs = []
-for item_id, group in train_df.groupby("item_id"):
+    # Zero-Shot Prediction (Baseline)
+    print("Running Zero-Shot (Base) predictions...")
+    pred_df = pipeline.predict_df(
+        df=train_df,
+        future_df=inference_df,
+        prediction_length=PREDICTION_LENGTH,
+        quantile_levels=[0.1, 0.5, 0.9],
+        id_column="item_id",
+        timestamp_column="timestamp",
+        target="pv_value",
+    )
 
-    covariates_dict = {col: group[col].values for col in COVARIATE_COLUMNS}
+    # Fine-Tuning Setup
+    print("Preparing training inputs...")
+    train_inputs = prepare_train_inputs(train_df, covariate_columns)
 
-    train_inputs.append({
-        "target": group[target].values,
-        "past_covariates": covariates_dict,#{col: group[col].values for col in past_covariates + known_covariates},
-        # Future values of covariates are not used during training.
-        # However, we need to include their names to indicate that these columns will be available at prediction time
-        #"future_covariates": covariates_dict,#{col: None for col in known_covariates},
-        "future_covariates": {col: None for col in known_covariates}
-    })
+    print(f"Configuring Adapter: {ADAPTER_TYPE.upper()}")
+    
+    peft_config = None
+    if ADAPTER_TYPE == "dora":
+        peft_config = LoraConfig(
+            r=16,
+            lora_alpha=32,
+            target_modules=[
+                "self_attention.q", "self_attention.v", 
+                "self_attention.k", "self_attention.o", 
+                "output_patch_embedding.output_layer"
+            ],
+            lora_dropout=0.05,
+            bias="none",
+            use_dora=True 
+        )
+    elif ADAPTER_TYPE == "lora":
+         peft_config = LoraConfig(
+            r=16,
+            lora_alpha=32,
+            target_modules=[
+                "self_attention.q", "self_attention.v", 
+                "self_attention.k", "self_attention.o", 
+                "output_patch_embedding.output_layer"
+            ],
+            lora_dropout=0.05,
+            bias="none",
+        )
+    
+    # Fine-tune
+    print("Starting Fine-Tuning...")
+    lora_pipeline = pipeline.fit(
+        inputs=train_inputs,
+        prediction_length=PREDICTION_LENGTH,
+        num_steps=NUM_STEPS,
+        learning_rate=LEARNING_RATE,
+        batch_size=BATCH_SIZE,
+        logging_steps=LOGGING_STEPS,
+        finetune_mode=ADAPTER_TYPE,
+        lora_config=peft_config if ADAPTER_TYPE == "dora" else None 
+    )
 
+    print("Running Fine-Tuned predictions...")
+    lora_pred_df = lora_pipeline.predict_df(
+        df=train_df,
+        future_df=inference_df,
+        prediction_length=PREDICTION_LENGTH,
+        quantile_levels=[0.1, 0.5, 0.9],
+        id_column="item_id",
+        timestamp_column="timestamp",
+        target="pv_value",
+    )
 
-# Fine-tune the model with LoRA or DoRA
-lora_finetuned_pipeline = pipeline.fit(
-    inputs=train_inputs,
-    prediction_length=PREDICTION_LENGTH,
-    num_steps=200,
-    learning_rate=1e-4,
-    batch_size=24, # I use 12 with Dora
-    logging_steps=100,
-    finetune_mode="lora",
-    #lora_config=dora_config,
-)
+    # Backtesting
+    full_df = pd.concat([train_df, test_df]).sort_values(['item_id', 'timestamp'])
+    backtest_model(
+        pipeline=lora_pipeline,
+        df=full_df,
+        num_windows=10,
+        step_size=PREDICTION_LENGTH
+    )
 
+    # Plotting
+    models_to_plot = {
+        "Zero-Shot (Base)": pred_df,
+        f"Fine-Tuned ({ADAPTER_TYPE.upper()})": lora_pred_df,
+    }
+    
+    print(f"Saving plots to {RESULTS_DIR}...")
+    plot_model_comparison(
+        train_df=train_df,
+        test_df=test_df,
+        model_predictions=models_to_plot,
+        plot_history_length=200, 
+        prediction_length=PREDICTION_LENGTH,
+        seasonality=96,
+        save_dir=RESULTS_DIR
+    )
 
-lora_finetuned_pred_df = lora_finetuned_pipeline.predict_df(
-    df=train_df,
-    future_df=inference_df,
-    prediction_length=prediction_length,
-    quantile_levels=[0.1, 0.5, 0.9],
-    id_column=id_column,
-    timestamp_column=timestamp_column,
-    target=target,
-)
+    print("Pipeline completed successfully.")
+
+if __name__ == "__main__":
+    main()

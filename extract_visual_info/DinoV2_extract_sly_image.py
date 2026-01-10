@@ -1,141 +1,166 @@
+import os
+import io
+import pickle
 import torch
-from transformers import AutoImageProcessor, AutoModel
-from PIL import Image
 import numpy as np
 import pandas as pd
-import io
-import os
-import pickle
+from PIL import Image
+from tqdm import tqdm
+from transformers import AutoImageProcessor, AutoModel
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 # --- Configuration ---
 BASE_DIR = "/content/drive/MyDrive/FM_project/dataset"
 INPUT_PATH = os.path.join(BASE_DIR, "skippd_train_aligned_v13_with_time_features.parquet")
 OUTPUT_PATH = os.path.join(BASE_DIR, "skippd_train_aligned_v13_with_time_features_and_sky_features.parquet")
-MODEL_SAVE_PATH = os.path.join(BASE_DIR, "feature_extractors") # To save PCA/Scaler
-
+MODEL_SAVE_DIR = os.path.join(BASE_DIR, "feature_extractors")
 MODEL_NAME = "facebook/dinov2-small"
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 BATCH_SIZE = 32
 N_COMPONENTS = 10
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-# Ensure save directory exists
-os.makedirs(MODEL_SAVE_PATH, exist_ok=True)
-
-# --- 1. Define the Extractor Class ---
 class SkyFeatureExtractor:
+    """
+    Extracts visual features from images using a pre-trained DinoV2 model.
+    """
     def __init__(self, model_name=MODEL_NAME, device=DEVICE):
-        print(f"Loading {model_name} on {device}...")
         self.device = device
         self.processor = AutoImageProcessor.from_pretrained(model_name)
         self.model = AutoModel.from_pretrained(model_name).to(self.device)
         self.model.eval()
 
     def extract_features(self, images):
-        if not images: return np.array([])
-        # Preprocess
+        """
+        Extracts features for a batch of images.
+        Returns the CLS token embedding.
+        
+        Args:
+            images (list): List of PIL images.
+            
+        Returns:
+            np.ndarray: Extracted features (CLS token).
+        """
+        if not images:
+            return np.array([])
+        
         inputs = self.processor(images=images, return_tensors="pt").to(self.device)
         with torch.no_grad():
             outputs = self.model(**inputs)
-        # Get CLS token (index 0)
+        
+        # Return CLS token (index 0)
         return outputs.last_hidden_state[:, 0, :].cpu().numpy()
 
-# --- 2. Processing Loop ---
-def process_full_dataset(input_path, extractor, batch_size=32):
-    print(f"Reading dataset from {input_path}...")
-    df = pd.read_parquet(input_path)
+def process_dataset_features(df, extractor, batch_size=32):
+    """
+    Iterates through the dataframe, processing images in batches.
+    Handles missing images by creating black placeholders.
 
+    Args:
+        df (pd.DataFrame): Dataframe containing 'image' column.
+        extractor (SkyFeatureExtractor): Initialized feature extractor.
+        batch_size (int): Size of the batch for inference.
+    
+    Returns:
+        np.ndarray: Stacked array of extracted features.
+    """
     all_features = []
     batch_images = []
 
-    print("Starting feature extraction...")
-    # Iterate through the DataFrame
     for raw_data in tqdm(df["image"], desc="Extracting Features"):
         try:
-            # Handle dictionary format (standard for this dataset)
+            # Handle dictionary format containing bytes
             if isinstance(raw_data, dict):
                 img_bytes = raw_data.get('bytes')
                 if img_bytes:
                     img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
                     batch_images.append(img)
                 else:
-                    # Fallback if bytes are missing: create a black image to keep alignment
                     batch_images.append(Image.new('RGB', (224, 224)))
             else:
-                 batch_images.append(Image.new('RGB', (224, 224)))
+                batch_images.append(Image.new('RGB', (224, 224)))
 
-            # If batch is full, run inference
             if len(batch_images) >= batch_size:
                 features = extractor.extract_features(batch_images)
                 all_features.append(features)
-                batch_images = [] # Clear memory
+                batch_images = []
 
         except Exception as e:
             print(f"Error processing image: {e}")
-            # Add dummy zeros to maintain row count alignment
+            # Append zero vector as fallback (384 is dinov2-small dim)
             all_features.append(np.zeros((1, 384)))
 
-    # Process leftovers
+    # Process remaining images
     if batch_images:
         features = extractor.extract_features(batch_images)
         all_features.append(features)
 
-    # Stack into one big array
-    return df, np.vstack(all_features)
+    return np.vstack(all_features) if all_features else np.array([])
 
-# --- 3. Execution Main ---
+def save_variance_plot(cumulative_variance, save_dir):
+    """
+    Saves the PCA explained variance plot.
+    """
+    plt.figure()
+    plt.plot(cumulative_variance)
+    plt.xlabel('Number of Components')
+    plt.ylabel('Cumulative Explained Variance')
+    plt.title('PCA Explained Variance')
+    plt.grid(True)
+    plot_path = os.path.join(save_dir, "pca_variance.png")
+    plt.savefig(plot_path)
+    plt.close()
 
-# A. Extract Raw Features
-extractor = SkyFeatureExtractor()
-df, raw_features = process_full_dataset(INPUT_PATH, extractor, batch_size=BATCH_SIZE)
-print(f"Raw features extracted. Shape: {raw_features.shape}")
+def main():
+    os.makedirs(MODEL_SAVE_DIR, exist_ok=True)
 
-# B. Normalize (StandardScaler)
-print("Fitting Standard Scaler...")
-scaler = StandardScaler()
-features_scaled = scaler.fit_transform(raw_features)
+    # 1. Load Data
+    print(f"Loading dataset from {INPUT_PATH}...")
+    if not os.path.exists(INPUT_PATH):
+        print(f"Error: Input file {INPUT_PATH} not found.")
+        pass
+    try:
+        df = pd.read_parquet(INPUT_PATH)
+    except Exception as e:
+        print(f"Could not read parquet file (expected if running locally with colab paths): {e}")
+        return
 
-# C. Reduce Dimensions (PCA)
-print(f"Fitting PCA (n={N_COMPONENTS})...")
-pca = PCA(n_components=N_COMPONENTS)
-pca_features = pca.fit_transform(features_scaled)
+    # 2. Extract Features
+    extractor = SkyFeatureExtractor()
+    raw_features = process_dataset_features(df, extractor, batch_size=BATCH_SIZE)
+    print(f"Extracted features shape: {raw_features.shape}")
 
-# SAFETY CHECK: Do these 10 features actually matter?
-cumulative_variance = np.cumsum(pca.explained_variance_ratio_)
-print(f"Explained Variance by 10 components: {cumulative_variance[-1]:.2%}")
+    # 3. Normalize Features
+    print("Normalizing features...")
+    scaler = StandardScaler()
+    features_scaled = scaler.fit_transform(raw_features)
 
-# Visualization of feature importance (Optional but recommended)
-# This tells you if Feature 9 and 10 are actually useless noise
-import matplotlib.pyplot as plt
-plt.plot(cumulative_variance)
-plt.xlabel('Number of Components')
-plt.ylabel('Cumulative Explained Variance')
-plt.title('Is 10 too many? Check the elbow.')
-plt.grid(True)
-plt.show()
+    # 4. Apply PCA
+    print(f"Applying PCA (n_components={N_COMPONENTS})...")
+    pca = PCA(n_components=N_COMPONENTS)
+    pca_features = pca.fit_transform(features_scaled)
 
-explained_variance = np.sum(pca.explained_variance_ratio_)
-print(f"✅ Explained Variance: {explained_variance:.2%}")
+    # Calculate and log variance
+    cumulative_variance = np.cumsum(pca.explained_variance_ratio_)
+    print(f"Explained Variance by {N_COMPONENTS} components: {cumulative_variance[-1]:.2%}")
+    save_variance_plot(cumulative_variance, MODEL_SAVE_DIR)
 
-# D. Add to DataFrame
-print("Merging new columns...")
-feature_cols = [f"sky_feature_{i}" for i in range(N_COMPONENTS)]
-df_features = pd.DataFrame(pca_features, columns=feature_cols, index=df.index)
+    # 5. Merge and Save
+    print("Merging and saving dataset...")
+    feature_cols = [f"sky_feature_{i}" for i in range(N_COMPONENTS)]
+    df_features = pd.DataFrame(pca_features, columns=feature_cols, index=df.index)
+    df_final = pd.concat([df, df_features], axis=1)
 
-# Concatenate along columns
-df_final = pd.concat([df, df_features], axis=1)
+    df_final.to_parquet(OUTPUT_PATH)
+    
+    # Save feature extractors for inference
+    with open(os.path.join(MODEL_SAVE_DIR, "scaler.pkl"), "wb") as f:
+        pickle.dump(scaler, f)
+    with open(os.path.join(MODEL_SAVE_DIR, "pca.pkl"), "wb") as f:
+        pickle.dump(pca, f)
 
-# E. Save Everything
-print(f"Saving new dataset to {OUTPUT_PATH}...")
-df_final.to_parquet(OUTPUT_PATH)
+    print(f"Processing complete. Saved to {OUTPUT_PATH}")
 
-# Save the models (CRITICAL for processing your Test Set later)
-with open(os.path.join(MODEL_SAVE_PATH, "scaler.pkl"), "wb") as f:
-    pickle.dump(scaler, f)
-with open(os.path.join(MODEL_SAVE_PATH, "pca.pkl"), "wb") as f:
-    pickle.dump(pca, f)
-
-print("Done! 🎉")
-print(df_final[feature_cols].head())
+if __name__ == "__main__":
+    main()
