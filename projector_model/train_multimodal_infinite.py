@@ -61,8 +61,8 @@ def main():
         covariate_dim=config.COVARIATE_DIM, 
         freeze_vision=False,
         use_precomputed_embeddings=True,
-        dropout=0.2, # Hardcoded or add to config if desired
-        noise_std=0.05, # Hardcoded or add to config
+        dropout=config.DROPOUT,
+        noise_std=config.NOISE_STD,
         device_map=device,
         torch_dtype=torch.bfloat16
     )
@@ -120,8 +120,8 @@ def main():
     p1_count = 0
     
     # Constants locally for loop
-    PROJECTOR_WARMUP_STEPS = 150 # Or from config
-    VAL_CHECK_INTERVAL = 10
+    PROJECTOR_WARMUP_STEPS = config.PROJECTOR_WARMUP_STEPS
+    VAL_CHECK_INTERVAL = config.VAL_CHECK_INTERVAL
     
     while p1_steps < PROJECTOR_WARMUP_STEPS:
         try:
@@ -159,7 +159,7 @@ def main():
              
         # Validation in Phase 1
         if (p1_steps + 1) % VAL_CHECK_INTERVAL == 0:
-            val_loss = validate(model, val_loader, device)
+            val_loss = training_utils.validate(model, val_loader, device)
             print(f"--> [Phase 1] Validation Step {p1_steps+1}: Loss {val_loss:.4f}")
             if True: # ENABLE_VISUALIZATION
                  training_utils.run_validation_visualization(pipeline, model, df, f"p1_{p1_steps+1}", config.CHECKPOINT_DIR, context_length=config.CONTEXT_LENGTH, device=device)
@@ -187,8 +187,8 @@ def main():
     optimizer = torch.optim.AdamW(trainable_params_p2, lr=config.LEARNING_RATE)
     
     # OneCycleLR Logic for Steps
-    MAX_STEPS = 100 # Or from config
-    WARMUP_STEPS_RATIO = 0.1
+    MAX_STEPS = config.MAX_STEPS
+    WARMUP_STEPS_RATIO = config.WARMUP_STEPS_RATIO
 
     scheduler = torch.optim.lr_scheduler.OneCycleLR(
         optimizer, 
@@ -261,7 +261,7 @@ def main():
                  interval_step_count = 0
                  start_time = time.time()
                  
-            SAVE_INTERVAL = 10
+            SAVE_INTERVAL = config.SAVE_INTERVAL
             
             if optimization_steps % VAL_CHECK_INTERVAL == 0:
                 val_loss = training_utils.validate(model, val_loader, device)

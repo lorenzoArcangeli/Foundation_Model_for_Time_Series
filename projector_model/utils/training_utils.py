@@ -4,8 +4,9 @@ import os
 import numpy as np
 from peft import LoraConfig, IA3Config, AdaLoraConfig, FourierFTConfig
 from . import visualization_utils # Relative import since they are in the same package
+from . import config
 
-def run_validation_visualization(pipeline, model, df, step_name, output_dir, context_length=2048, device="cuda"):
+def run_validation_visualization(pipeline, model, df, step_name, output_dir, context_length=config.CONTEXT_LENGTH, device="cuda"):
     """
     Calculates metrics and logs them to a text file.
     Wraps the visualization logic to be called from the training loop.
@@ -57,7 +58,7 @@ def run_validation_visualization(pipeline, model, df, step_name, output_dir, con
     
     # Simple split for visualization logic (Inline here to avoid circular dep or too much complexity)
     def split_vis(df_in):
-        prediction_length = 96
+        prediction_length = config.PREDICTION_LENGTH
         test_df = df_in.groupby('item_id').tail(prediction_length).copy()
         train_df = df_in.drop(test_df.index).copy()
         inference_df = test_df.copy()
@@ -72,7 +73,7 @@ def run_validation_visualization(pipeline, model, df, step_name, output_dir, con
         df=train_df,
         future_df=inference_df,
         context_length=context_length, 
-        prediction_length=96,
+        prediction_length=config.PREDICTION_LENGTH,
         quantile_levels=[0.1, 0.5, 0.9],
         id_column="item_id",
         timestamp_column="timestamp",

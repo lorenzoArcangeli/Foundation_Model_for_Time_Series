@@ -3,10 +3,10 @@ import pandas as pd
 import os
 import numpy as np
 from . import metrics
-import metrics
+from . import config
 
 def log_validation_metrics(train_df, test_df, model_predictions, item_id, phase_info, output_dir, 
-                          prediction_length=96, seasonality=96):
+                          prediction_length=config.PREDICTION_LENGTH, seasonality=config.SEASONALITY):
     
     # Setup Data
     full_data = pd.concat([train_df, test_df]).sort_values(['item_id', 'timestamp'])
@@ -67,7 +67,7 @@ def log_validation_metrics(train_df, test_df, model_predictions, item_id, phase_
     return log_line
 
 def plot_model_comparison(train_df, test_df, model_predictions,
-                          plot_history_length=200, prediction_length=96, seasonality=96, output_dir="."):
+                          plot_history_length=200, prediction_length=config.PREDICTION_LENGTH, seasonality=config.SEASONALITY, output_dir="."):
 
     # A. Setup Data
     # Concatenate train and test to get the full timeline for plotting context
