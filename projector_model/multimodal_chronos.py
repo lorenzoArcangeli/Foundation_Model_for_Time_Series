@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from transformers import AutoModel
+from chronos import BaseChronosPipeline
 from chronos.chronos2.model import Chronos2Model
 
 class VisionProjector(nn.Module):
@@ -12,11 +13,8 @@ class VisionProjector(nn.Module):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
-            nn.Dropout(dropout), # Regularization
-            # nn.BatchNorm1d(hidden_dim), # Removed to preserve PCA variance
-            # nn.GELU(),                  # Removed to keep linearity like PCA
+            nn.Dropout(dropout), 
             nn.Linear(hidden_dim, output_dim),
-            # nn.BatchNorm1d(output_dim)  # Removed to avoid destroying variance hierarchy
         )
 
     def forward(self, x):
@@ -29,16 +27,18 @@ class MultimodalChronos(nn.Module):
         vision_model_name="facebook/dinov2-small",
         covariate_dim=16,
         freeze_vision=True,
-        use_precomputed_embeddings=True, # New flag
-        dropout=0.0, # Dropout for projector
-        noise_std=0.0 # Gaussian noise for embeddings during training
+        use_precomputed_embeddings=True, 
+        dropout=0.0, 
+        noise_std=0.0,
+        device_map="cuda",
+        torch_dtype=torch.bfloat16
     ):
         super().__init__()
         self.covariate_dim = covariate_dim
         self.use_precomputed = use_precomputed_embeddings
         self.noise_std = noise_std
         
-        # 1. The "Eye" (Vision Backbone)
+        # Vision Backbone
         if not self.use_precomputed:
             print(f"Loading Vision Backbone: {vision_model_name}")
             self.vision_backbone = AutoModel.from_pretrained(vision_model_name)
@@ -49,14 +49,19 @@ class MultimodalChronos(nn.Module):
         else:
             print("Using precomputed embeddings. Skipping Vision Backbone load.")
             self.vision_backbone = None
-            # Assume DinoV2 Small dim if precomputed
             vision_dim = 384 
         
-        # 2. The "Translator" (Projector)
+        # Projector
         self.projector = VisionProjector(input_dim=vision_dim, output_dim=covariate_dim, dropout=dropout)
         
-        # 3. The "Brain" (Chronos 2)
-        self.chronos = None 
+        # Chronos 2 (The "Brain")
+        print(f"Loading Chronos Pipeline: {chronos_model_name}")
+        self.pipeline = BaseChronosPipeline.from_pretrained(
+            chronos_model_name, 
+            device_map=device_map, 
+            torch_dtype=torch_dtype
+        )
+        self.chronos = self.pipeline.model
 
     def forward(
         self, 
@@ -69,8 +74,7 @@ class MultimodalChronos(nn.Module):
         batch_size = pixel_values.shape[0]
         device = context_tensor.device
         
-        # --- A. Process Images (The "Eye") ---
-        # ... (Same as before) ...
+        # Process Images
         if self.use_precomputed:
             raw_embeddings = pixel_values.reshape(-1, pixel_values.shape[-1]).to(dtype=self.projector.net[0].weight.dtype) 
         else:
@@ -80,12 +84,12 @@ class MultimodalChronos(nn.Module):
                 vision_outputs = self.vision_backbone(pixel_values=flat_images)
                 raw_embeddings = vision_outputs.last_hidden_state[:, 0, :] 
         
-        # --- Robustness: Inject Noise during Training ---
+        # Regularization
         if self.training and self.noise_std > 0:
             noise = torch.randn_like(raw_embeddings) * self.noise_std
             raw_embeddings = raw_embeddings + noise
             
-        # --- B. Project to Covariates (The "Translator") ---
+        # Project to Covariates
         visual_flat = self.projector(raw_embeddings)
         visual_seq = visual_flat.reshape(batch_size, -1, self.covariate_dim)
         
@@ -99,17 +103,16 @@ class MultimodalChronos(nn.Module):
             pred_len = future_target.shape[1]
             visual_future = visual_seq[:, context_len : context_len+pred_len, :]
 
-        # --- C. Process Tabular Covariates ---
+        # Process Tabular Covariates
         tab_context = None
         tab_future = None
         if tabular_covariates is not None:
-            # tabular_covariates is (Batch, Total_Time, Num_Tabular)
             tab_context = tabular_covariates[:, :context_len, :]
             
             if future_target is not None:
                 tab_future = tabular_covariates[:, context_len : context_len+pred_len, :]
 
-        # --- D. Expand Batch for Group Attention ---
+        # Expand for Group Attention
         # Order: [PV, Tabular, Visual]
         
         pv_context_expanded = context_tensor.unsqueeze(1) # (B, 1, T)
@@ -117,10 +120,9 @@ class MultimodalChronos(nn.Module):
         tensors_to_cat = [pv_context_expanded]
         
         if tab_context is not None:
-            # (B, T, Num_Tab) -> (B, Num_Tab, T)
             tensors_to_cat.append(tab_context.permute(0, 2, 1))
             
-        tensors_to_cat.append(visual_context.permute(0, 2, 1)) # (B, Cov_Dim, T)
+        tensors_to_cat.append(visual_context.permute(0, 2, 1)) 
         
         combined_context = torch.cat(tensors_to_cat, dim=1)
         
@@ -135,8 +137,6 @@ class MultimodalChronos(nn.Module):
             
             combined_future = torch.cat(future_to_cat, dim=1)
             
-        # Update num_series to include Tabular dims
-        # combined_context is (Batch, Total_Series, T)
         num_series = combined_context.shape[1]
         
         flat_context = combined_context.reshape(-1, context_len) 
@@ -154,7 +154,7 @@ class MultimodalChronos(nn.Module):
         else:
             flat_mask = None
             
-        # --- D. Forward Pass ---
+        # Forward Pass
         output_patch_size = 16 
         num_output_patches = 1
         if future_target is not None:
