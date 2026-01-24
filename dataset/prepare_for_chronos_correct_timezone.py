@@ -42,7 +42,7 @@ class DatasetPreparer:
         - Truncates to the configured date range.
         - Resamples to a strict frequency grid, introducing NaNs for missing steps.
         """
-        # 1. Column Detection
+        # Column Detection
         timestamp_cols = [col for col in df.columns if 'time' in col.lower() or 'date' in col.lower()]
         if not timestamp_cols:
             raise ValueError("Schema Error: No valid timestamp column found in dataset.")
@@ -53,26 +53,26 @@ class DatasetPreparer:
         if not pd.api.types.is_datetime64_any_dtype(df[time_col]):
             df[time_col] = pd.to_datetime(df[time_col])
 
-        # 2. Temporal Filtration
+        # Temporal Filtration
         start_date = pd.Timestamp(self.cfg.START_DATE)
         cutoff_date = pd.Timestamp(self.cfg.CUTOFF_DATE)
         
         print(f"Filtering data to range: {start_date} -> {cutoff_date}...")
         df = df[(df[time_col] >= start_date) & (df[time_col] <= cutoff_date)].copy()
 
-        # 3. Grid Alignment
+        # Grid Alignment
         # Round timestamps to the nearest frequency step to correct minor drift
         df['time_rounded'] = df[time_col].dt.round(self.cfg.FREQ)
         # Drop duplicates resulting from rounding (keep first occurrence)
         df = df.drop_duplicates(subset=['time_rounded'], keep='first')
         df = df.set_index('time_rounded').sort_index()
 
-        # 4. Strict Resampling
+        # Strict Resampling
         # This creates explicit rows for every timestamp in the grid, filling missing ones with NaNs
         print(f"Resampling to strict {self.cfg.FREQ} frequency grid...")
         df_resampled = df.resample(self.cfg.FREQ).asfreq()
 
-        # 5. Boundary Restoration
+        # Boundary Restoration
         # Ensure the dataset starts exactly at START_DATE, even if the first data point is later
         if df_resampled.index.min() > start_date:
             target_start = start_date
