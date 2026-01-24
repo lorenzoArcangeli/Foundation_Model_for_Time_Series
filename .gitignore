@@ -10,7 +10,6 @@ autogluon_c2_results.zip
 test_utils
 extracted_features
 notebooks
-checkpoints
 results_manual_chronos2_ft_dora.zip
 results_manual_chronos2_ft_dora.zip
 VisionFusion
