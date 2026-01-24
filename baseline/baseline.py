@@ -31,7 +31,7 @@ def load_and_prepare(path):
     print(f"Loading {path}...")
     df = pd.read_parquet(path)
 
-    # Rename columns to match AutoGluon's expected format
+    # Rename columns to match AutoGluon format
     column_mapping = {
         "time": "timestamp",
         "series_id": "item_id",
@@ -39,10 +39,9 @@ def load_and_prepare(path):
     }
     df = df.rename(columns={k: v for k, v in column_mapping.items() if k in df.columns})
 
-    # Timestamp Conversion & Remove Timezone
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     if df['timestamp'].dt.tz is not None:
-        print("Detected timezone info. Removing for AutoGluon compatibility...")
+        # remove for autogluon compatibility
         df['timestamp'] = df['timestamp'].dt.tz_localize(None)
 
     missing_covariates = [col for col in COVARIATE_COLUMNS if col not in df.columns]
@@ -52,8 +51,9 @@ def load_and_prepare(path):
 
     # Handle Sky Features (if applicable)
     if USE_IMAGE_FEATURES and SKY_FEATURE_COLS:
+        # Just to check
         if df[SKY_FEATURE_COLS].isnull().values.any():
-            print("âš ï¸ Warning: NaNs found in sky features. Filling with 0.")
+            print("Warning: NaNs found in sky features. Filling with 0.")
             df[SKY_FEATURE_COLS] = df[SKY_FEATURE_COLS].fillna(0)
             
     # Create TimeSeriesDataFrame
@@ -80,6 +80,7 @@ def fit_model(full_df, use_saved_models=USE_CV2_SAVED_MODEL):
   print("\nVerifying Data Integrity...")
   train_data = train_data.convert_frequency(freq='30min')
 
+  # Try different Chronos models
   model_hyperparameters = {
       "Chronos": [
           {
@@ -119,7 +120,7 @@ def fit_model(full_df, use_saved_models=USE_CV2_SAVED_MODEL):
   bolt_predictor.fit(
       train_data,
       hyperparameters=model_hyperparameters,
-      enable_ensemble=False, # Disable ensemble to isolate Chronos performance
+      enable_ensemble=False,
       random_seed=42
   )
 
@@ -130,7 +131,7 @@ def fit_model(full_df, use_saved_models=USE_CV2_SAVED_MODEL):
   c2_predictor = TimeSeriesPredictor(
       prediction_length=PREDICTION_LENGTH,
       target="pv_value",
-      path="autogluon_chronos2_results", # Folder to save models
+      path="autogluon_chronos2_results",
       eval_metric="MASE", 
       known_covariates_names=COVARIATE_COLUMNS
   )
@@ -198,21 +199,20 @@ def main():
     
     full_df = load_and_prepare(TRAIN_PATH)
     
-    # DROP the raw image column (dicts) if it exists so AutoGluon doesn't crash
+    # Drop the raw image column if present
     if "image" in full_df.columns:
         print("Dropping raw 'image' column (dictionaries)...")
         full_df = full_df.drop(columns=["image"])
 
     print(f"Data shape: {full_df.shape}")
 
-    # Fit models (Returns full trained data for context)
+    # Fit models
     train_data, bolt_predictor, c2_predictor = fit_model(full_df, use_saved_models=USE_CV2_SAVED_MODEL)
 
-    # --- Generate Predictions ---
+    # Generate Predictions
     past_data = train_data.slice_by_timestep(None, -PREDICTION_LENGTH)
     known_covariates_future = train_data[COVARIATE_COLUMNS]
 
-    # Predict with Chronos-2 manually
     print("Generating Chronos-2 predictions...")
     cv2_model_predictions = chronos2prediction(
         past_data, 
@@ -222,7 +222,6 @@ def main():
         use_saved_models=USE_CV2_SAVED_MODEL
     )
 
-    # Plot and Save Results
     print(f"Saving plots to {RESULTS_DIR}...")
     plot_prediction(
         past_data, 

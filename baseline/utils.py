@@ -10,7 +10,6 @@ def calculate_item_mase(y_true, y_pred, y_history):
     #Calculate MAE of the forecast 
     mae_forecast = np.mean(np.abs(y_true.values - y_pred.values))
 
-    # Calculate MAE 
     if len(y_history) < 2:
         return np.nan # Not enough history
 
