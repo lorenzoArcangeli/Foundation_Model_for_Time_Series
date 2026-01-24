@@ -1,13 +1,34 @@
+# Core Foundation Model
 git+https://github.com/amazon-science/chronos-forecasting.git
+
+# AutoGluon (for baseline)
 autogluon.timeseries[all]
+
+# Transformers & PEFT
 transformers
+peft
 accelerate
-datasets
+
+# Data Processing
 pandas
-python-dotenv
 numpy
-gluonts
-torch
-matplotlib
 pyarrow
 fastparquet
+
+# ML & Scientific Computing
+torch
+scikit-learn
+gluonts
+
+# Image Processing
+Pillow
+
+# Visualization
+matplotlib
+tqdm
+
+# Configuration
+python-dotenv
+
+# Datasets (HuggingFace)
+datasets

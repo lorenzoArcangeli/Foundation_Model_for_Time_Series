@@ -11,14 +11,13 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 
-# --- Configuration ---
 BASE_DIR = "/content/drive/MyDrive/FM_project/dataset"
 INPUT_PATH = os.path.join(BASE_DIR, "skippd_train_aligned_v13_with_time_features.parquet")
 OUTPUT_PATH = os.path.join(BASE_DIR, "skippd_train_aligned_v13_with_time_features_and_sky_features.parquet")
 MODEL_SAVE_DIR = os.path.join(BASE_DIR, "feature_extractors")
 MODEL_NAME = "facebook/dinov2-small"
 BATCH_SIZE = 32
-N_COMPONENTS = 10
+N_COMPONENTS = 16
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 class SkyFeatureExtractor:
@@ -115,7 +114,7 @@ def save_variance_plot(cumulative_variance, save_dir):
 def main():
     os.makedirs(MODEL_SAVE_DIR, exist_ok=True)
 
-    # 1. Load Data
+    # Load Data
     print(f"Loading dataset from {INPUT_PATH}...")
     if not os.path.exists(INPUT_PATH):
         print(f"Error: Input file {INPUT_PATH} not found.")
@@ -126,17 +125,17 @@ def main():
         print(f"Could not read parquet file (expected if running locally with colab paths): {e}")
         return
 
-    # 2. Extract Features
+    # Extract Features
     extractor = SkyFeatureExtractor()
     raw_features = process_dataset_features(df, extractor, batch_size=BATCH_SIZE)
     print(f"Extracted features shape: {raw_features.shape}")
 
-    # 3. Normalize Features
+    # Normalize Features
     print("Normalizing features...")
     scaler = StandardScaler()
     features_scaled = scaler.fit_transform(raw_features)
 
-    # 4. Apply PCA
+    # Apply PCA
     print(f"Applying PCA (n_components={N_COMPONENTS})...")
     pca = PCA(n_components=N_COMPONENTS)
     pca_features = pca.fit_transform(features_scaled)
@@ -146,7 +145,7 @@ def main():
     print(f"Explained Variance by {N_COMPONENTS} components: {cumulative_variance[-1]:.2%}")
     save_variance_plot(cumulative_variance, MODEL_SAVE_DIR)
 
-    # 5. Merge and Save
+    # Merge and Save
     print("Merging and saving dataset...")
     feature_cols = [f"sky_feature_{i}" for i in range(N_COMPONENTS)]
     df_features = pd.DataFrame(pca_features, columns=feature_cols, index=df.index)
