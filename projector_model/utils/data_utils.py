@@ -13,7 +13,7 @@ def load_data(path):
     if "series_id" in df.columns:
         df = df.rename(columns={"series_id": "item_id", "pv": "pv_value"})
 
-    # Drop 'time' if it exists to avoid type errors in Chronos pipeline (which dislikes TZ-aware columns)
+    # Drop 'time' if it exists to avoid type errors in Chronos pipeline
     if 'time' in df.columns:
         df = df.drop(columns=['time'])
 
@@ -40,7 +40,7 @@ def split_ts_dataset(df, prediction_length):
 
     print(f"Splitting data for {len(valid_items)} time series...")
 
-    # Inference/Test: Grab the last prediction_length rows for EACH item_id
+    # Inference/Test: Grab the last prediction_length rows for each item_id
     test_df = df.groupby('item_id').tail(prediction_length).copy()
 
     # Train: Drop the rows that belong to test_df

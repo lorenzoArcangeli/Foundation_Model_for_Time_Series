@@ -12,6 +12,7 @@ def calculate_item_mase(y_true, y_pred, y_history, seasonality=96):
     return forecast_mae / naive_mae
 
 def calculate_item_mape(y_true, y_pred, epsilon=1e-10):
+    """Calculates MAPE"""
     mask = y_true > epsilon
     if np.sum(mask) == 0:
         return np.nan 
@@ -19,6 +20,7 @@ def calculate_item_mape(y_true, y_pred, epsilon=1e-10):
     return mape
 
 def calculate_item_wmape(y_true, y_pred):
+    """Calculates WMAPE"""
     total_abs_error = np.sum(np.abs(y_true - y_pred))
     total_actuals = np.sum(np.abs(y_true))
     if total_actuals == 0:
@@ -26,6 +28,7 @@ def calculate_item_wmape(y_true, y_pred):
     return (total_abs_error / total_actuals) * 100
 
 def calculate_item_wql(y_true, quantile_preds, quantiles):
+    """Calculates WQL"""
     total_loss = 0
     total_abs_target = np.sum(np.abs(y_true))
     if total_abs_target == 0:
@@ -39,6 +42,7 @@ def calculate_item_wql(y_true, quantile_preds, quantiles):
     return wql
 
 def calculate_item_sql(y_true, quantile_preds, quantiles, y_history, seasonality=96):
+    """Calculates SQL"""
     total_loss = 0
     if len(y_history) <= seasonality:
         return np.inf

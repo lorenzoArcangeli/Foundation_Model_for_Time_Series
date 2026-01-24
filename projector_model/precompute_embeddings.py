@@ -4,11 +4,7 @@ from PIL import Image
 import pandas as pd
 import io
 from tqdm import tqdm
-
 from utils import config
-
-# --- Configuration ---
-# Uses config.py
 
 def main():
     print(f"Loading dataset from {config.RAW_DATA_PATH}...")

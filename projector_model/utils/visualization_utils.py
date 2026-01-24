@@ -61,7 +61,6 @@ def log_validation_metrics(train_df, test_df, model_predictions, item_id, phase_
             metrics_str = f"Error: {e}"
 
         item_log = f"- Item {item_id}: {metrics_str}"
-        print(item_log) # Print to console
         log_line += item_log + "\n"
 
     return log_line
@@ -69,7 +68,7 @@ def log_validation_metrics(train_df, test_df, model_predictions, item_id, phase_
 def plot_model_comparison(train_df, test_df, model_predictions,
                           plot_history_length=200, prediction_length=config.PREDICTION_LENGTH, seasonality=config.SEASONALITY, output_dir="."):
 
-    # A. Setup Data
+    # Setup Data
     # Concatenate train and test to get the full timeline for plotting context
     full_data = pd.concat([train_df, test_df]).sort_values(['item_id', 'timestamp'])
 
@@ -82,7 +81,7 @@ def plot_model_comparison(train_df, test_df, model_predictions,
 
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'] # Blue, Orange, Green, Red
 
-    # B. Initialize Figure
+    # Initialize Figure
     fig, axs = plt.subplots(num_plots, 1, figsize=(15, 6 * num_plots), sharex=False)
     if num_plots == 1: axs = [axs] # Ensure axs is always iterable
 
@@ -91,23 +90,23 @@ def plot_model_comparison(train_df, test_df, model_predictions,
     for i, item_id in enumerate(item_ids):
         ax = axs[i]
 
-        # --- C. Prepare Series Data ---
+        # Prepare Series Data
         # Filter data for this specific item
         item_full_data = full_data[full_data['item_id'] == item_id].set_index('timestamp')
         item_test_data = test_df[test_df['item_id'] == item_id].set_index('timestamp')
         item_train_data = train_df[train_df['item_id'] == item_id].set_index('timestamp')
 
-        # 1. History Context (for plotting)
+        # History Context
         # We grab the last 'plot_history_length' points from training + the prediction window
         history_context = item_full_data.iloc[-(plot_history_length + prediction_length):]
 
-        # 2. Ground Truth (The actual future)
+        # Ground Truth (The actual future)
         ground_truth_future = item_test_data['pv_value']
 
-        # 3. History for Metric (for MASE denominator)
+        # History for Metric (for MASE denominator)
         history_for_metric = item_train_data['pv_value'].values
 
-        # --- D. Plot Background ---
+        # Plot Background
         # Plot the actual values (history + future)
         ax.plot(history_context.index, history_context['pv_value'],
                 label='Actual Ground Truth', color='black', linewidth=2, alpha=0.6)
@@ -118,7 +117,7 @@ def plot_model_comparison(train_df, test_df, model_predictions,
             ax.axvspan(cutoff_date, ground_truth_future.index[-1], color='gray', alpha=0.1, label="Forecast Window")
             ax.axvline(x=cutoff_date, color='black', linestyle=':', linewidth=1)
 
-        # --- E. Plot Each Model ---
+        # Plot Each Model
         for idx, (model_name, pred_df_all) in enumerate(model_predictions.items()):
             # Filter predictions for this item
             item_preds = pred_df_all[pred_df_all['item_id'] == item_id].set_index('timestamp')
@@ -126,7 +125,7 @@ def plot_model_comparison(train_df, test_df, model_predictions,
             if item_preds.empty:
                 continue
 
-            # 1. Calculate Metrics
+            # Calculate Metrics
             try:
                 # Align lengths (take last N points if necessary)
                 y_pred_median = item_preds['predictions'].values[-len(ground_truth_future):]
@@ -174,7 +173,7 @@ def plot_model_comparison(train_df, test_df, model_predictions,
                 print(f"Error calculating metrics for {model_name} on item {item_id}: {e}")
                 metrics_label = "Metrics: Error"
 
-            # 2. Plot Predictions
+            # Plot Predictions
             color = colors[idx % len(colors)]
             label_text = f'{model_name}\n({metrics_label})'
 
@@ -191,7 +190,7 @@ def plot_model_comparison(train_df, test_df, model_predictions,
                     color=color, alpha=0.15
                 )
 
-        # --- F. Final Formatting ---
+        # Final Formatting
         ax.set_title(f"Item {item_id}: Forecast Comparison", fontsize=14, fontweight='bold')
         ax.set_ylabel("PV Value")
         ax.legend(loc='upper left', fontsize=9, framealpha=0.9)

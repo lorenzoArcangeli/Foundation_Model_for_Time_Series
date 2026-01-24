@@ -344,10 +344,26 @@ MAX_GRAD_NORM = 1.0       # Gradient clipping
 
 ### Environment Variables
 
-Set `FM_DATA_DIR` to customize data paths:
+The project uses a `.env` file for configuration. To set up:
+
+1. Copy the example file:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Edit `.env` with your data paths:
+   ```bash
+   FM_DATA_DIR=/path/to/your/data/directory
+   ```
+
+The `.env` file is automatically loaded by the configuration module. Alternatively, you can set environment variables directly:
 
 ```bash
+# Linux/Mac
 export FM_DATA_DIR="/path/to/your/data"
+
+# Windows PowerShell
+$env:FM_DATA_DIR="C:\path\to\your\data"
 ```
 
 ---

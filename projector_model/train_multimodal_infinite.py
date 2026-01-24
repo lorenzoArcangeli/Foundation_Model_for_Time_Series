@@ -1,3 +1,16 @@
+"""
+Two-phase training script for the Multimodal Chronos model.
+
+Phase 1 (Projector Warmup):
+    - Only the VisionProjector is trained
+    - Chronos weights are frozen
+    - Establishes a meaningful visual-to-covariate mapping
+
+Phase 2 (Joint Training):
+    - VisionProjector + LoRA adapters are trained together
+    - Uses OneCycleLR scheduler with gradient accumulation
+    - Periodic validation and checkpointing
+"""
 import torch
 from torch.utils.data import DataLoader
 from transformers import get_scheduler
@@ -5,23 +18,18 @@ from peft import get_peft_model
 import os
 import time
 
-# Custom Imports
 from multimodal_chronos import MultimodalChronos
 from multimodal_dataset import RandomMultimodalDataset, MultimodalDataset, collate_fn
 from utils import data_utils
 from utils import training_utils
-
 from utils import config
-
-# --- Configuration ---
-# Uses config.py for localized settings
 
 def main():
     os.makedirs(config.CHECKPOINT_DIR, exist_ok=True)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
 
-    # 1. Prepare Data
+    # Prepare Data
     df = data_utils.load_data(config.DATA_PATH)
     
     # Using full dataset for training, validating on hold-out windows of the same set
@@ -31,7 +39,7 @@ def main():
     
     print(f"Series: {df_train['item_id'].nunique()}")
     
-    # A. Infinite Random Train Dataset
+    # Infinite Random Train Dataset
     train_dataset = RandomMultimodalDataset(
         df=df_train,
         prediction_length=config.PREDICTION_LENGTH,
@@ -42,7 +50,7 @@ def main():
     )
     train_loader = DataLoader(train_dataset, batch_size=config.BATCH_SIZE, collate_fn=collate_fn, num_workers=0) 
     
-    # B. Deterministic Validation Dataset
+    # Deterministic Validation Dataset
     val_dataset = MultimodalDataset(
         df=df_val,
         prediction_length=config.PREDICTION_LENGTH,
@@ -53,7 +61,7 @@ def main():
     )
     val_loader = DataLoader(val_dataset, batch_size=config.BATCH_SIZE, shuffle=False, collate_fn=collate_fn)
     
-    # 2. Prepare Model
+    # Prepare Model
     print("Initializing Model...")
     model = MultimodalChronos(
         chronos_model_name=config.CHRONOS_MODEL,
@@ -78,10 +86,9 @@ def main():
     # Access pipeline from the model
     pipeline = model.pipeline
     model.projector.to(dtype=torch.bfloat16)
-    # model.to(device) # already handled by device_map for chronos, ensure projector is on device
     model.projector.to(device)
     
-    # Setup LoRA / PEFT
+    # Setup for PEDT
     print(f"Applying PEFT Type: {config.PEFT_TYPE}")
     target_modules=[
         "self_attention.q",
@@ -100,7 +107,7 @@ def main():
     has_group_attn = any("group_self_attention" in n or ("layer.1" in n and "self_attention" in n) for n in trainable_names)
     print(f"DEBUG: LoRA captures GroupSelfAttention? {'YES' if has_group_attn else 'MAYBE (Check names manually)'}")
     
-    # --- PHASE 1: PROJECTOR WARMUP ---
+    # PHASE 1: PROJECTOR WARMUP
     print("\n=== PHASE 1: PROJECTOR WARMUP (Training ONLY Projector) ===")
     
     # Freeze Everything Except Projector
@@ -170,7 +177,7 @@ def main():
 
     print("Phase 1 Complete. Projector Warmed Up.")
     
-    # --- PHASE 2: JOINT TRAINING ---
+    # PHASE 2: JOINT TRAINING
     print("\n=== PHASE 2: JOINT TRAINING (LoRA + Projector) ===")
     
     # Unfreeze LoRA
@@ -266,7 +273,7 @@ def main():
             if optimization_steps % VAL_CHECK_INTERVAL == 0:
                 val_loss = training_utils.validate(model, val_loader, device)
                 print(f"--> Validation Step {optimization_steps}: Loss {val_loss:.4f}")
-                if True: # ENABLE_VISUALIZATION
+                if True: # Enable Visualization
                     training_utils.run_validation_visualization(pipeline, model, df, f"p2_{optimization_steps}", config.CHECKPOINT_DIR, context_length=config.CONTEXT_LENGTH, device=device)
                 
             if optimization_steps % SAVE_INTERVAL == 0:

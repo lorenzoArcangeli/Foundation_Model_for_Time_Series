@@ -6,16 +6,11 @@ import matplotlib.pyplot as plt
 from transformers import AutoModel, AutoImageProcessor
 from chronos import BaseChronosPipeline
 from peft import PeftModel
-
-# Custom Imports
 from multimodal_chronos import MultimodalChronos
 from utils import data_utils
 from utils import visualization_utils
 from utils import training_utils
-
 from utils import config
-
-# --- Configuration ---
 CHECKPOINT_EPOCH = 50 # Local config
 
 def load_ft_chronos_model():
@@ -41,7 +36,7 @@ def load_ft_chronos_model():
     pipeline = model.pipeline
     print("Base model loaded via MultimodalChronos.")
 
-    # Attach LoRA/DoRA Adapter
+    # Attach Adapters
     adapter_path = os.path.join(actual_checkpoint_dir, "chronos_lora_adapter")
     pipeline.model = PeftModel.from_pretrained(pipeline.model, adapter_path)
     model.chronos = pipeline.model # Ensure MultimodalChronos uses the PEFT model
@@ -68,7 +63,7 @@ def add_projected_features(df, projector):
     """
     print("Projecting visual embeddings to covariates...")
 
-    all_embeddings = np.stack(df['visual_embedding'].values) # (N, 384)
+    all_embeddings = np.stack(df['visual_embedding'].values)
     all_tensor = torch.tensor(all_embeddings, dtype=torch.bfloat16, device=config.DEVICE)
 
     projected_tensor = projector.projector(all_tensor)
@@ -107,19 +102,18 @@ def predict(pipeline, train_df, inference_df, test_df, context_length, predictio
     return pred_df
 
 def main():
-    # 1. Load Data
+    # Load Data
     df = data_utils.load_data(config.DATA_PATH)
     
     # Identify initial covariates (excluding array column)
-    # data_utils.identify_covariates works generally, but here we want to handle visual_embedding specifically
     reserved_columns = ['timestamp', 'item_id', 'pv_value', 'visual_embedding']
     COVARIATE_COLUMNS = [col for col in df.columns if col not in reserved_columns]
     print(f"Initial covariates: {COVARIATE_COLUMNS}")
 
-    # 2. Load Model
+    # Load Model
     projector, pipeline = load_ft_chronos_model()
 
-    # 3. Project Features
+    # Project Features
     df_enriched, cov_cols = add_projected_features(df, projector)
     print(f"Added {len(cov_cols)} covariate columns.")
 
@@ -129,22 +123,21 @@ def main():
     if 'visual_embedding' in df.columns:
         df = df.drop(columns=['visual_embedding'])
 
-    # 4. Zero-Shot Baseline (Original Data)
+    # Zero-Shot Baseline (Original Data)
     train_df_orig, inference_df_orig, test_df_orig = data_utils.split_ts_dataset(df, config.PREDICTION_LENGTH)
-    # pred_df_original = predict(pipeline, train_df_orig, inference_df_orig, test_df_orig, config.CONTEXT_LENGTH, config.PREDICTION_LENGTH, COVARIATE_COLUMNS)
 
-    # 5. Multimodal Prediction
+    # Multimodal Prediction
     final_cov = COVARIATE_COLUMNS + cov_cols
     train_df, inference_df, test_df = data_utils.split_ts_dataset(df_enriched, config.PREDICTION_LENGTH)
     
     pred_df_multimodal = predict(pipeline, train_df, inference_df, test_df, config.CONTEXT_LENGTH, config.PREDICTION_LENGTH, final_cov)
 
     models_to_plot = {
-        # "Zero-Shot (Base)": pred_df_original,
+        # "Baseline": pred_df_original,
         "Multimodal": pred_df_multimodal,
     }
     
-    # 6. Visualize
+    # Visualize
     visualization_utils.plot_model_comparison(
         train_df=train_df,
         test_df=test_df,

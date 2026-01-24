@@ -1,3 +1,10 @@
+"""
+PyTorch datasets for multimodal time series training.
+
+Provides two dataset implementations:
+    MultimodalDataset: Deterministic indexing for validation/testing
+    RandomMultimodalDataset: Infinite (up to N samples) random sampling for training (matches Chronos pipeline)
+"""
 import torch
 from torch.utils.data import Dataset, IterableDataset, get_worker_info
 import pandas as pd
@@ -5,7 +12,14 @@ import numpy as np
 from PIL import Image
 import io
 
+
 class MultimodalDataset(Dataset):
+    """
+    Deterministic dataset for validation and testing.
+    
+    In 'train' mode: Creates sliding windows with configurable stride
+    In 'validation' mode: Uses only the last window of each series
+    """
     def __init__(self, df, prediction_length, context_length, image_processor=None, mode="train", use_precomputed=False, stride=1):
         self.df = df
         self.prediction_length = prediction_length
@@ -138,7 +152,15 @@ def collate_fn(batch):
 
 class RandomMultimodalDataset(IterableDataset):
     """
-    Dataset that implements 'Infinite Random Sampling' logic.
+    Infinite random sampling dataset for training (matches Chronos pipeline behavior).
+    
+    Sampling strategy:
+        1. Select a series with probability proportional to its length
+        2. Randomly choose a start position within the valid range
+        3. Extract context + prediction windows
+    
+    Args:
+        reserved_end_steps: Number of steps to reserve at the end for validation
     """
     def __init__(self, df, prediction_length, context_length, image_processor=None, use_precomputed=False, reserved_end_steps=0):
         self.df = df

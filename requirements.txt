@@ -1,8 +1,11 @@
 git+https://github.com/amazon-science/chronos-forecasting.git
+autogluon.timeseries[all]
+transformers
+accelerate
 datasets
 pandas
+python-dotenv
 numpy
-chronos-forecasting
 gluonts
 torch
 matplotlib

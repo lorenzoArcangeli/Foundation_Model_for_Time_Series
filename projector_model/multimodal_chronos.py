@@ -1,15 +1,29 @@
+"""
+Core model definitions for the Multimodal Chronos architecture.
+
+This module provides the integration between visual features (DinoV2 embeddings)
+and the Chronos-2 time series foundation model through a learnable projector.
+
+Classes:
+    VisionProjector: MLP that projects 384-dim DinoV2 embeddings to 16-dim covariates
+    MultimodalChronos: Combines projector with Chronos-2 for multimodal forecasting
+"""
 import torch
 import torch.nn as nn
 from transformers import AutoModel
 from chronos import BaseChronosPipeline
 from chronos.chronos2.model import Chronos2Model
 
+
 class VisionProjector(nn.Module):
+    """
+    Projects high-dimensional visual features into low-dimensional synthetic covariates.
+    
+    Architecture: Linear(384 → 128) → Dropout → Linear(128 → 16)
+    
+    Can be initialized with PCA weights for stable training convergence.
+    """
     def __init__(self, input_dim=384, output_dim=16, hidden_dim=128, dropout=0.0):
-        """
-        Projects high-dimensional visual features (from DinoV2) into 
-        low-dimensional 'synthetic covariates' for Chronos.
-        """
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
@@ -21,6 +35,22 @@ class VisionProjector(nn.Module):
         return self.net(x)
 
 class MultimodalChronos(nn.Module):
+    """
+    Multimodal time series forecasting model combining Chronos-2 with visual features.
+    
+    Takes PV power values and corresponding sky images (or precomputed embeddings),
+    projects visual features to synthetic covariates, and uses Chronos-2's group
+    attention mechanism to make predictions.
+    
+    Args:
+        chronos_model_name: HuggingFace model ID for Chronos-2
+        vision_model_name: HuggingFace model ID for vision backbone (if not precomputed)
+        covariate_dim: Output dimension of the vision projector
+        freeze_vision: Whether to freeze vision backbone weights
+        use_precomputed_embeddings: If True, expects embeddings instead of raw images
+        dropout: Dropout rate in the projector
+        noise_std: Gaussian noise std for regularization during training
+    """
     def __init__(
         self, 
         chronos_model_name="amazon/chronos-2", 
@@ -54,7 +84,7 @@ class MultimodalChronos(nn.Module):
         # Projector
         self.projector = VisionProjector(input_dim=vision_dim, output_dim=covariate_dim, dropout=dropout)
         
-        # Chronos 2 (The "Brain")
+        # Chronos 2
         print(f"Loading Chronos Pipeline: {chronos_model_name}")
         self.pipeline = BaseChronosPipeline.from_pretrained(
             chronos_model_name, 

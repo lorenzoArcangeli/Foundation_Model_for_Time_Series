@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import numpy as np
 from peft import LoraConfig, IA3Config, AdaLoraConfig, FourierFTConfig
-from . import visualization_utils # Relative import since they are in the same package
+from . import visualization_utils 
 from . import config
 
 def run_validation_visualization(pipeline, model, df, step_name, output_dir, context_length=config.CONTEXT_LENGTH, device="cuda"):
@@ -11,7 +11,7 @@ def run_validation_visualization(pipeline, model, df, step_name, output_dir, con
     Calculates metrics and logs them to a text file.
     Wraps the visualization logic to be called from the training loop.
     """
-    # ENSURE EVAL MODE (Disable Dropout/Noise)
+    # Eval mode 
     was_training = model.training
     model.eval()
     
@@ -27,14 +27,14 @@ def run_validation_visualization(pipeline, model, df, step_name, output_dir, con
     
     header = f"{phase_str}:\nStep {step_num}:"
 
-    # 1. Select items (e.g., first 3)
+    # Select items (first 3)
     distinct_items = sorted(df['item_id'].unique())
     selected_items = distinct_items[:3] 
     
     # Filter DF for speed
     df_vis = df[df['item_id'].isin(selected_items)].copy()
     
-    # 2. Project Features
+    # Project Features
     if 'visual_embedding' not in df_vis.columns:
         print("[Vis] Warning: 'visual_embedding' column not found. Skipping visualization.")
         return
@@ -54,9 +54,9 @@ def run_validation_visualization(pipeline, model, df, step_name, output_dir, con
     if 'visual_embedding' in df_enriched.columns:
         df_enriched = df_enriched.drop(columns=['visual_embedding'])
         
-    # 3. Predict using Pipeline
+    # Predict using Pipeline
     
-    # Simple split for visualization logic (Inline here to avoid circular dep or too much complexity)
+    # Simple split for visualization logic
     def split_vis(df_in):
         prediction_length = config.PREDICTION_LENGTH
         test_df = df_in.groupby('item_id').tail(prediction_length).copy()

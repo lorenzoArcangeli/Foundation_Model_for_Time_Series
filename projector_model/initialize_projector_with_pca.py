@@ -8,9 +8,6 @@ from multimodal_chronos import VisionProjector
 
 from utils import config
 
-# --- Configuration ---
-# Uses config.py for localized settings
-
 def main():
     print(f"Loading data from {config.DATA_PATH}...")
     df = pd.read_parquet(config.DATA_PATH)
@@ -50,7 +47,7 @@ def main():
         # Copy PCA components into first COVARIATE_DIM slots
         w1[:config.COVARIATE_DIM] = torch.tensor(components, dtype=torch.float32)
         
-        # Bias: We need to subtract the mean. 
+        # Bias: Subtract the mean. 
         # Linear layer computes x @ W.T + b
         # PCA computes (x - mean) @ V.T = x @ V.T - mean @ V.T
         # So bias b = - (mean @ V.T)
