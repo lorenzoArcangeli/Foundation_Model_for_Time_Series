@@ -1,0 +1,17 @@
+git+https://github.com/amazon-science/chronos-forecasting.git
+autogluon.timeseries[all]
+transformers
+peft
+accelerate
+pandas
+numpy
+pyarrow
+fastparquet
+torch
+scikit-learn
+gluonts
+Pillow
+matplotlib
+tqdm
+python-dotenv
+datasets
